@@ -6,19 +6,10 @@
 static uintmax_t
 strtoumaxc(const char **format);
 
-yp_pack_result
-yp_pack_parse(
-    yp_pack_version version,
-    yp_pack_variant variant,
-    const char **format,
-    const char *format_end,
-    yp_pack_type *type,
-    yp_pack_signed *signed_type,
-    yp_pack_endian *endian,
-    yp_pack_size *size,
-    yp_pack_length_type *length_type,
-    uint64_t *length,
-    yp_pack_encoding *encoding) {
+__attribute__((__visibility__("default"))) extern yp_pack_result
+yp_pack_parse(yp_pack_version version, yp_pack_variant variant, const char **format, const char *format_end,
+              yp_pack_type *type, yp_pack_signed *signed_type, yp_pack_endian *endian, yp_pack_size *size,
+              yp_pack_length_type *length_type, uint64_t *length, yp_pack_encoding *encoding) {
 
   if (*encoding == YP_PACK_ENCODING_START) {
     *encoding = YP_PACK_ENCODING_US_ASCII;
@@ -462,7 +453,7 @@ exit_modifier_loop:
   return YP_PACK_OK;
 }
 
-size_t
+__attribute__((__visibility__("default"))) extern size_t
 yp_size_to_native(yp_pack_size size) {
   switch (size) {
     case YP_PACK_SIZE_SHORT:
