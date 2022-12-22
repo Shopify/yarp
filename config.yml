@@ -507,6 +507,10 @@ nodes:
     child_nodes:
       - name: def_keyword
         type: token
+      - name: receiver
+        type: node?
+      - name: operator
+        type: token?
       - name: name
         type: token
       - name: lparen
