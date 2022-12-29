@@ -402,24 +402,6 @@ lex_global_variable(yp_parser_t *parser) {
 }
 
 static yp_token_type_t
-lex_at_variable(yp_parser_t *parser) {
-  yp_token_type_t type = match(parser, '@') ? YP_TOKEN_CLASS_VARIABLE : YP_TOKEN_INSTANCE_VARIABLE;
-  size_t width;
-
-  if ((width = char_is_identifier_start(parser, parser->current.end))) {
-    parser->current.end += width;
-
-    while ((width = char_is_identifier(parser, parser->current.end))) {
-      parser->current.end += width;
-    }
-
-    return type;
-  }
-
-  return YP_TOKEN_INVALID;
-}
-
-static yp_token_type_t
 lex_identifier(yp_parser_t *parser) {
   // Lex as far as we can into the current identifier.
   size_t width;
@@ -503,44 +485,6 @@ lex_identifier(yp_parser_t *parser) {
   char start = parser->current.start[0];
   return start >= 'A' && start <= 'Z' ? YP_TOKEN_CONSTANT : YP_TOKEN_IDENTIFIER;
 }
-
-// static yp_token_type_t
-// lex_symbol(yp_parser_t *parser) {
-//   switch (*parser->current.end++) {
-//     case '[':
-//       if (match(parser, ']')) return YP_TOKEN_BRACKET_LEFT_RIGHT;
-//     case '@':
-//       return lex_at_variable(parser);
-//     case '$':
-//       return lex_global_variable(parser);
-//     case '+':
-//       return YP_TOKEN_PLUS;
-//     case '-':
-//       return YP_TOKEN_MINUS;
-//     case '*':
-//       if (match(parser, '*')) return YP_TOKEN_STAR_STAR;
-//       return YP_TOKEN_STAR;
-//     case '/':
-//       return YP_TOKEN_SLASH;
-//     case '&':
-//       return YP_TOKEN_AMPERSAND;
-//     case '|':
-//       return YP_TOKEN_PIPE;
-//     case '<':
-//       if (match(parser, '<')) {
-//             if (match(parser, '=')) return YP_TOKEN_LESS_LESS_EQUAL;
-
-//             // We don't yet handle heredocs.
-//             if (match(parser, '-') || match(parser, '~')) return YP_TOKEN_EOF;
-
-//             return YP_TOKEN_LESS_LESS;
-//           }
-//           if (match(parser, '=')) return match(parser, '>') ? YP_TOKEN_LESS_EQUAL_GREATER : YP_TOKEN_LESS_EQUAL;
-//           return YP_TOKEN_LESS;
-//   }
-
-//   return YP_TOKEN_INVALID;
-// }
 
 // Returns true if the current token that the parser is considering is at the
 // beginning of a line or the beginning of the source.
@@ -849,8 +793,22 @@ lex_token_type(yp_parser_t *parser) {
           return lex_global_variable(parser);
 
         // instance variable, class variable
-        case '@':
-          return lex_at_variable(parser);
+        case '@': {
+          yp_token_type_t type = match(parser, '@') ? YP_TOKEN_CLASS_VARIABLE : YP_TOKEN_INSTANCE_VARIABLE;
+          size_t width;
+
+          if ((width = char_is_identifier_start(parser, parser->current.end))) {
+            parser->current.end += width;
+
+            while ((width = char_is_identifier(parser, parser->current.end))) {
+              parser->current.end += width;
+            }
+
+            return type;
+          }
+
+          return YP_TOKEN_INVALID;
+        }
 
         default: {
           // If this isn't the beginning of an identifier, then it's an invalid
@@ -1094,29 +1052,6 @@ lex_token_type(yp_parser_t *parser) {
 
       return YP_TOKEN_EOF;
     }
-    // case YP_LEX_SYMBOL: {
-    //   // First, we'll set to start of this token to be the current end.
-    //   parser->current.start = parser->current.end;
-
-    //   // Lex as far as we can into the symbol.
-    //   if (parser->current.end < parser->end) {
-    //     yp_token_type_t type = YP_TOKEN_INVALID;
-
-    //     if (char_is_identifier_start(parser, parser->current.end)) {
-    //       parser->current.end++;
-    //       type = lex_identifier(parser);
-    //     } else {
-
-    //     }
-
-    //     lex_mode_pop(parser);
-    //     return match(parser, '=') ? YP_TOKEN_IDENTIFIER : type;
-    //   }
-
-    //   // If we get here then we have the start of a symbol with no content. In
-    //   // that case return an invalid token.
-    //   return YP_TOKEN_INVALID;
-    // }
   }
 
   // We shouldn't be able to get here at all, but some compilers can't figure
@@ -1854,15 +1789,66 @@ parse_conditional(yp_parser_t *parser, yp_context_t context) {
   return parent;
 }
 
+static inline bool
+type_is_keyword(yp_token_type_t type) {
+  return type >= YP_TOKEN_KEYWORD___ENCODING__ && type <= YP_TOKEN_KEYWORD_YIELD;
+}
+
+static yp_token_t
+parse_symbol_content(yp_parser_t *parser) {
+  if (type_is_keyword(parser->current.type)) return parser->current;
+
+  switch (parser->current.type) {
+    case YP_TOKEN_CLASS_VARIABLE:
+    case YP_TOKEN_CONSTANT:
+    case YP_TOKEN_GLOBAL_VARIABLE:
+    case YP_TOKEN_IDENTIFIER:
+    case YP_TOKEN_INSTANCE_VARIABLE:
+    // operators
+    case YP_TOKEN_AMPERSAND:
+    case YP_TOKEN_BANG:
+    case YP_TOKEN_BANG_AT:
+    case YP_TOKEN_BANG_EQUAL:
+    case YP_TOKEN_BANG_TILDE:
+    case YP_TOKEN_CARET:
+    case YP_TOKEN_EQUAL_EQUAL:
+    case YP_TOKEN_EQUAL_EQUAL_EQUAL:
+    case YP_TOKEN_EQUAL_TILDE:
+    case YP_TOKEN_BRACKET_LEFT_RIGHT:
+    case YP_TOKEN_GREATER:
+    case YP_TOKEN_GREATER_EQUAL:
+    case YP_TOKEN_GREATER_GREATER:
+    case YP_TOKEN_LESS:
+    case YP_TOKEN_LESS_EQUAL:
+    case YP_TOKEN_LESS_EQUAL_GREATER:
+    case YP_TOKEN_LESS_LESS:
+    case YP_TOKEN_LESS_LESS_EQUAL:
+    case YP_TOKEN_MINUS:
+    case YP_TOKEN_MINUS_AT:
+    case YP_TOKEN_PERCENT:
+    case YP_TOKEN_PIPE:
+    case YP_TOKEN_PLUS:
+    case YP_TOKEN_PLUS_AT:
+    case YP_TOKEN_SLASH:
+    case YP_TOKEN_STAR:
+    case YP_TOKEN_STAR_STAR:
+    case YP_TOKEN_TILDE:
+    case YP_TOKEN_TILDE_AT:
+      return parser->current;
+    default:
+      yp_error_list_append(&parser->error_list, "Expected a valid symbol.", parser->current.end - parser->start);
+
+      return (yp_token_t) { .type = YP_TOKEN_INVALID, .start = parser->current.end, .end = parser->current.end };
+  }
+}
+
 static yp_node_t*
 parse_symbol(yp_parser_t *parser, int mode) {
   yp_token_t opening = parser->previous;
 
   if (mode == YP_LEX_SYMBOL) {
-    yp_token_t symbol = parser->current;
-    lex_mode_pop(parser);
+    yp_token_t symbol = parse_symbol_content(parser);
     parser_lex(parser);
-
 
     yp_token_t closing;
     not_provided(&closing, parser->previous.end);
