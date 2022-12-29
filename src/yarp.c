@@ -402,6 +402,24 @@ lex_global_variable(yp_parser_t *parser) {
 }
 
 static yp_token_type_t
+lex_at_variable(yp_parser_t *parser) {
+  yp_token_type_t type = match(parser, '@') ? YP_TOKEN_CLASS_VARIABLE : YP_TOKEN_INSTANCE_VARIABLE;
+  size_t width;
+
+  if ((width = char_is_identifier_start(parser, parser->current.end))) {
+    parser->current.end += width;
+
+    while ((width = char_is_identifier(parser, parser->current.end))) {
+      parser->current.end += width;
+    }
+
+    return type;
+  }
+
+  return YP_TOKEN_INVALID;
+}
+
+static yp_token_type_t
 lex_identifier(yp_parser_t *parser) {
   // Lex as far as we can into the current identifier.
   size_t width;
@@ -486,6 +504,44 @@ lex_identifier(yp_parser_t *parser) {
   return start >= 'A' && start <= 'Z' ? YP_TOKEN_CONSTANT : YP_TOKEN_IDENTIFIER;
 }
 
+// static yp_token_type_t
+// lex_symbol(yp_parser_t *parser) {
+//   switch (*parser->current.end++) {
+//     case '[':
+//       if (match(parser, ']')) return YP_TOKEN_BRACKET_LEFT_RIGHT;
+//     case '@':
+//       return lex_at_variable(parser);
+//     case '$':
+//       return lex_global_variable(parser);
+//     case '+':
+//       return YP_TOKEN_PLUS;
+//     case '-':
+//       return YP_TOKEN_MINUS;
+//     case '*':
+//       if (match(parser, '*')) return YP_TOKEN_STAR_STAR;
+//       return YP_TOKEN_STAR;
+//     case '/':
+//       return YP_TOKEN_SLASH;
+//     case '&':
+//       return YP_TOKEN_AMPERSAND;
+//     case '|':
+//       return YP_TOKEN_PIPE;
+//     case '<':
+//       if (match(parser, '<')) {
+//             if (match(parser, '=')) return YP_TOKEN_LESS_LESS_EQUAL;
+
+//             // We don't yet handle heredocs.
+//             if (match(parser, '-') || match(parser, '~')) return YP_TOKEN_EOF;
+
+//             return YP_TOKEN_LESS_LESS;
+//           }
+//           if (match(parser, '=')) return match(parser, '>') ? YP_TOKEN_LESS_EQUAL_GREATER : YP_TOKEN_LESS_EQUAL;
+//           return YP_TOKEN_LESS;
+//   }
+
+//   return YP_TOKEN_INVALID;
+// }
+
 // Returns true if the current token that the parser is considering is at the
 // beginning of a line or the beginning of the source.
 static bool
@@ -501,6 +557,7 @@ static yp_token_type_t
 lex_token_type(yp_parser_t *parser) {
   switch (parser->lex_modes.current->mode) {
     case YP_LEX_DEFAULT:
+    case YP_LEX_SYMBOL:
     case YP_LEX_EMBEXPR: {
       // First, we're going to skip past any whitespace at the front of the next
       // token.
@@ -528,6 +585,8 @@ lex_token_type(yp_parser_t *parser) {
 
       // Next, we'll set to start of this token to be the current end.
       parser->current.start = parser->current.end;
+
+      if (parser->lex_modes.current->mode == YP_LEX_SYMBOL) lex_mode_pop(parser);
 
       // Finally, we'll check the current character to determine the next token.
       switch (*parser->current.end++) {
@@ -565,7 +624,7 @@ lex_token_type(yp_parser_t *parser) {
 
         // [ []
         case '[':
-          if (parser->previous.type == YP_TOKEN_DOT && match(parser, ']')) {
+          if ((parser->previous.type == YP_TOKEN_DOT || parser->previous.type == YP_TOKEN_SYMBOL_BEGIN) && match(parser, ']')) {
             return YP_TOKEN_BRACKET_LEFT_RIGHT;
           }
           return YP_TOKEN_BRACKET_LEFT;
@@ -709,15 +768,16 @@ lex_token_type(yp_parser_t *parser) {
         // :: symbol
         case ':':
           if (match(parser, ':')) return YP_TOKEN_COLON_COLON;
-          if (char_is_identifier(parser, parser->current.end)) {
-            lex_mode_push(parser, (yp_lex_mode_t) { .mode = YP_LEX_SYMBOL, .term = '\0' });
-            return YP_TOKEN_SYMBOL_BEGIN;
-          } else if ((*parser->current.end == '"') || (*parser->current.end == '\'')) {
+          if (char_is_whitespace(parser->current.end)) return YP_TOKEN_COLON;
+
+          if ((*parser->current.end == '"') || (*parser->current.end == '\'')) {
             lex_mode_push(parser, (yp_lex_mode_t) { .mode = YP_LEX_STRING, .term = *parser->current.end, .interp = *parser->current.end == '"' });
             parser->current.end++;
             return YP_TOKEN_SYMBOL_BEGIN;
           }
-          return YP_TOKEN_COLON;
+
+          lex_mode_push(parser, (yp_lex_mode_t) { .mode = YP_LEX_SYMBOL, .term = '\0' });
+          return YP_TOKEN_SYMBOL_BEGIN;
 
         // / /=
         case '/':
@@ -789,22 +849,8 @@ lex_token_type(yp_parser_t *parser) {
           return lex_global_variable(parser);
 
         // instance variable, class variable
-        case '@': {
-          yp_token_type_t type = match(parser, '@') ? YP_TOKEN_CLASS_VARIABLE : YP_TOKEN_INSTANCE_VARIABLE;
-          size_t width;
-
-          if ((width = char_is_identifier_start(parser, parser->current.end))) {
-            parser->current.end += width;
-
-            while ((width = char_is_identifier(parser, parser->current.end))) {
-              parser->current.end += width;
-            }
-
-            return type;
-          }
-
-          return YP_TOKEN_INVALID;
-        }
+        case '@':
+          return lex_at_variable(parser);
 
         default: {
           // If this isn't the beginning of an identifier, then it's an invalid
@@ -1048,25 +1094,29 @@ lex_token_type(yp_parser_t *parser) {
 
       return YP_TOKEN_EOF;
     }
-    case YP_LEX_SYMBOL: {
-      // First, we'll set to start of this token to be the current end.
-      parser->current.start = parser->current.end;
+    // case YP_LEX_SYMBOL: {
+    //   // First, we'll set to start of this token to be the current end.
+    //   parser->current.start = parser->current.end;
 
-      // Lex as far as we can into the symbol.
-      if (parser->current.end < parser->end) {
-        if (char_is_identifier_start(parser, parser->current.end)) {
-          parser->current.end++;
-          lex_mode_pop(parser);
+    //   // Lex as far as we can into the symbol.
+    //   if (parser->current.end < parser->end) {
+    //     yp_token_type_t type = YP_TOKEN_INVALID;
 
-          yp_token_type_t type = lex_identifier(parser);
-          return match(parser, '=') ? YP_TOKEN_IDENTIFIER : type;
-        }
-      }
+    //     if (char_is_identifier_start(parser, parser->current.end)) {
+    //       parser->current.end++;
+    //       type = lex_identifier(parser);
+    //     } else {
 
-      // If we get here then we have the start of a symbol with no content. In
-      // that case return an invalid token.
-      return YP_TOKEN_INVALID;
-    }
+    //     }
+
+    //     lex_mode_pop(parser);
+    //     return match(parser, '=') ? YP_TOKEN_IDENTIFIER : type;
+    //   }
+
+    //   // If we get here then we have the start of a symbol with no content. In
+    //   // that case return an invalid token.
+    //   return YP_TOKEN_INVALID;
+    // }
   }
 
   // We shouldn't be able to get here at all, but some compilers can't figure
@@ -1810,7 +1860,9 @@ parse_symbol(yp_parser_t *parser, int mode) {
 
   if (mode == YP_LEX_SYMBOL) {
     yp_token_t symbol = parser->current;
+    lex_mode_pop(parser);
     parser_lex(parser);
+
 
     yp_token_t closing;
     not_provided(&closing, parser->previous.end);

@@ -173,6 +173,11 @@ abc.+@
 
 :abc
 :ABC
+:[]
+:self
+:@abc
+:@@abc
+:$abc
 
 ~
 
