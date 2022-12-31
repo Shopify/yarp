@@ -599,7 +599,7 @@ lex_token_type(yp_parser_t *parser) {
         case '!':
           if (match(parser, '=')) return YP_TOKEN_BANG_EQUAL;
           if (match(parser, '~')) return YP_TOKEN_BANG_TILDE;
-          if ((parser->previous.type == YP_TOKEN_KEYWORD_DEF || parser->previous.type == YP_TOKEN_DOT) && match(parser, '@'))
+          if ((parser->previous.type == YP_TOKEN_KEYWORD_DEF || parser->previous.type == YP_TOKEN_DOT || parser->previous.type == YP_TOKEN_SYMBOL_BEGIN ) && match(parser, '@'))
             return YP_TOKEN_BANG_AT;
           return YP_TOKEN_BANG;
 
@@ -679,14 +679,14 @@ lex_token_type(yp_parser_t *parser) {
         // + += +@
         case '+':
           if (match(parser, '=')) return YP_TOKEN_PLUS_EQUAL;
-          if ((parser->previous.type == YP_TOKEN_KEYWORD_DEF || parser->previous.type == YP_TOKEN_DOT) && match(parser, '@')) return YP_TOKEN_PLUS_AT;
+          if ((parser->previous.type == YP_TOKEN_KEYWORD_DEF || parser->previous.type == YP_TOKEN_DOT || parser->previous.type == YP_TOKEN_SYMBOL_BEGIN) && match(parser, '@')) return YP_TOKEN_PLUS_AT;
           return YP_TOKEN_PLUS;
 
         // - -= -@
         case '-':
           if (match(parser, '>')) return YP_TOKEN_MINUS_GREATER;
           if (match(parser, '=')) return YP_TOKEN_MINUS_EQUAL;
-          if ((parser->previous.type == YP_TOKEN_KEYWORD_DEF || parser->previous.type == YP_TOKEN_DOT) &&
+          if ((parser->previous.type == YP_TOKEN_KEYWORD_DEF || parser->previous.type == YP_TOKEN_DOT || parser->previous.type == YP_TOKEN_SYMBOL_BEGIN) &&
               match(parser, '@'))
             return YP_TOKEN_MINUS_AT;
           return YP_TOKEN_MINUS;
@@ -737,7 +737,7 @@ lex_token_type(yp_parser_t *parser) {
 
         // ~ ~@
         case '~':
-          if ((parser->previous.type == YP_TOKEN_KEYWORD_DEF || parser->previous.type == YP_TOKEN_DOT) &&
+          if ((parser->previous.type == YP_TOKEN_KEYWORD_DEF || parser->previous.type == YP_TOKEN_DOT || parser->previous.type == YP_TOKEN_SYMBOL_BEGIN) &&
               match(parser, '@'))
             return YP_TOKEN_TILDE_AT;
           return YP_TOKEN_TILDE;
@@ -1838,7 +1838,7 @@ parse_symbol_content(yp_parser_t *parser) {
     default:
       yp_error_list_append(&parser->error_list, "Expected a valid symbol.", parser->current.end - parser->start);
 
-      return (yp_token_t) { .type = YP_TOKEN_INVALID, .start = parser->current.end, .end = parser->current.end };
+      return (yp_token_t) { .type = YP_TOKEN_INVALID, .start = parser->current.start, .end = parser->current.end };
   }
 }
 

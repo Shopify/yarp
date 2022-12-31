@@ -986,6 +986,10 @@ class ParseTest < Test::Unit::TestCase
 
   test "operator symbol" do
     assert_parses SymbolNode(SYMBOL_BEGIN(":"), PLUS("+"), nil), ":+"
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), PLUS_AT("+@"), nil), ":+@"
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), MINUS_AT("-@"), nil), ":-@"
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), TILDE_AT("~@"), nil), ":~@"
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), BANG_AT("!@"), nil), ":!@"
     assert_parses SymbolNode(SYMBOL_BEGIN(":"), BRACKET_LEFT_RIGHT("[]"), nil), ":[]"
   end
 
