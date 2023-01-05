@@ -1039,6 +1039,35 @@ class ParseTest < Test::Unit::TestCase
     assert_parses SymbolNode(SYMBOL_BEGIN(":"), IDENTIFIER("a"), nil), ":a"
   end
 
+  test "keyword symbol" do
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), KEYWORD_SELF("self"), nil), ":self"
+  end
+
+  test "constant symbol" do
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), CONSTANT("Foo"), nil), ":Foo"
+  end
+
+  test "intance variable symbol" do
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), INSTANCE_VARIABLE("@foo"), nil), ":@foo"
+  end
+
+  test "class variable symbol" do
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), CLASS_VARIABLE("@@foo"), nil), ":@@foo"
+  end
+
+  test "operator symbol" do
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), PLUS("+"), nil), ":+"
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), PLUS_AT("+@"), nil), ":+@"
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), MINUS_AT("-@"), nil), ":-@"
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), TILDE_AT("~@"), nil), ":~@"
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), BANG_AT("!@"), nil), ":!@"
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), BRACKET_LEFT_RIGHT("[]"), nil), ":[]"
+  end
+
+  test "global variable symbol" do
+    assert_parses SymbolNode(SYMBOL_BEGIN(":"), GLOBAL_VARIABLE("$foo"), nil), ":$foo"
+  end
+
   test "symbol list" do
     expected = ArrayNode(
       PERCENT_LOWER_I("%i["),
