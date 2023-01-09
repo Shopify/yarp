@@ -125,6 +125,14 @@ char_is_whitespace(const char *c) {
   return char_is_non_newline_whitespace(c) || *c == '\n';
 }
 
+static inline bool
+char_is_symbol(const char *c) {
+  return *c == '{' || *c == '}' || *c == '(' || *c == ')' || *c == '[' || *c == ']' || *c == '<' || *c == '>' ||
+  *c == '!' || *c == '@' || *c == '#' || *c == '$' || *c == '%' || *c == '^' || *c == '&' || *c == '*' ||
+  *c == '_' || *c == '+' || *c == '-' || *c == '|' || *c == '\\' || *c == ':' || *c == ';' || *c == '"' ||
+  *c == '\'' || *c == ',' || *c == '.';
+}
+
 /******************************************************************************/
 /* Lexer check helpers                                                        */
 /******************************************************************************/
@@ -790,7 +798,12 @@ lex_token_type(yp_parser_t *parser) {
               lex_mode_push(parser, (yp_lex_mode_t) { .mode = YP_LEX_STRING, .term = terminator(*parser->current.end++), .interp = true });
               return YP_TOKEN_PERCENT_LOWER_X;
             default:
-              return YP_TOKEN_PERCENT;
+              if (char_is_symbol(parser->current.end)) {
+                lex_mode_push(parser, (yp_lex_mode_t) { .mode = YP_LEX_STRING, .term = terminator(*parser->current.end++), .interp = true });
+                return YP_TOKEN_STRING_BEGIN;
+              } else {
+                return YP_TOKEN_PERCENT;
+              }
           }
 
         // global variable
