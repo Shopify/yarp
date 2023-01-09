@@ -1594,10 +1594,18 @@ void
 parse_arguments(yp_parser_t *parser, yp_node_t *arguments) {
   if (!accept(parser, YP_TOKEN_PARENTHESIS_RIGHT)) {
     while (parser->current.type != YP_TOKEN_EOF) {
-      yp_node_t *expression = parse_expression(parser, BINDING_POWER_NONE, "Expected to be able to parse an argument.");
-      if (expression->type == YP_NODE_MISSING_NODE) break;
+      yp_node_t *argument;
 
-      yp_node_list_append(parser, arguments, &arguments->as.arguments_node.arguments, expression);
+      if (accept(parser, YP_TOKEN_DOT_DOT_DOT)) {
+	if (!yp_token_list_includes(&parser->current_scope->as.scope.locals, &parser->previous)) {
+	  yp_error_list_append(&parser->error_list, "unexpected ... when parent method is not forwarding.", parser->previous.start - parser->start);
+	}
+	argument = yp_node_forwarding_parameter_node_create(parser, &parser->previous);
+      } else {
+	argument = parse_expression(parser, BINDING_POWER_NONE, "Expected to be able to parse an argument.");
+	if (argument->type == YP_NODE_MISSING_NODE) break;
+      }
+      yp_node_list_append(parser, arguments, &arguments->as.arguments_node.arguments, argument);
 
       if (accept(parser, YP_TOKEN_PARENTHESIS_RIGHT)) break;
       expect(parser, YP_TOKEN_COMMA, "Expected an ',' to delimit arguments.");
@@ -1659,6 +1667,7 @@ parse_parameters(yp_parser_t *parser) {
       case YP_TOKEN_DOT_DOT_DOT: {
         parser_lex(parser);
 
+        yp_token_list_append(&parser->current_scope->as.scope.locals, &parser->previous);
         yp_node_t *param = yp_node_forwarding_parameter_node_create(parser, &parser->previous);
         params->as.parameters_node.keyword_rest = param;
         if (!accept(parser, YP_TOKEN_COMMA)) parsing = false;

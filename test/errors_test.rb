@@ -127,6 +127,14 @@ class ErrorsTest < Test::Unit::TestCase
     assert_errors expression('(1 + 2'), '(1 + 2', ["Expected a closing parenthesis."]
   end
 
+  test "argument forwarding when parent is not forwarding" do
+    assert_errors expression('def a(x, y, z); b(...); end'), 'def a(x, y, z); b(...); end', ["unexpected ... when parent method is not forwarding."]
+  end
+
+  test "argument forwarding only effects its own internals" do
+    assert_errors expression('def a(...); b(...); end; def c(x, y, z); b(...); end'), 'def a(...); b(...); end; def c(x, y, z); b(...); end', ["unexpected ... when parent method is not forwarding."]
+  end
+
   private
 
   def assert_errors(expected, source, errors)

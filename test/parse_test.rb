@@ -727,7 +727,7 @@ class ParseTest < Test::Unit::TestCase
       nil,
       Statements([]),
       KEYWORD_END("end"),
-      Scope([])
+      Scope([DOT_DOT_DOT("...")])
     )
 
     assert_parses expected, "def a ...\nend"
@@ -786,6 +786,121 @@ class ParseTest < Test::Unit::TestCase
     )
 
     assert_parses expected, "def m a, b:, **nil\nend"
+  end
+
+  test "method call with ..." do
+    expected = DefNode(
+      KEYWORD_DEF("def"),
+      IDENTIFIER("a"),
+      PARENTHESIS_LEFT("("),
+      ParametersNode(
+        [],
+        [],
+        nil,
+        [],
+        ForwardingParameterNode(DOT_DOT_DOT("...")),
+        nil
+      ),
+      PARENTHESIS_RIGHT(")"),
+      nil,
+      Statements(
+        [CallNode(
+           nil,
+           nil,
+           IDENTIFIER("b"),
+           PARENTHESIS_LEFT("("),
+           ArgumentsNode([ForwardingParameterNode(DOT_DOT_DOT("..."))]),
+           PARENTHESIS_RIGHT(")"),
+           "b"
+         )]
+      ),
+      KEYWORD_END("end"),
+      Scope([DOT_DOT_DOT("...")])
+    )
+
+    assert_parses expected, "def a(...); b(...); end"
+  end
+
+
+  test "method call with ... after args" do
+    expected = DefNode(
+      KEYWORD_DEF("def"),
+      IDENTIFIER("a"),
+      PARENTHESIS_LEFT("("),
+      ParametersNode(
+        [],
+        [],
+        nil,
+        [],
+        ForwardingParameterNode(DOT_DOT_DOT("...")),
+        nil
+      ),
+      PARENTHESIS_RIGHT(")"),
+      nil,
+      Statements(
+        [CallNode(
+           nil,
+           nil,
+           IDENTIFIER("b"),
+           PARENTHESIS_LEFT("("),
+           ArgumentsNode(
+             [IntegerLiteral(INTEGER("1")),
+              IntegerLiteral(INTEGER("2")),
+              ForwardingParameterNode(DOT_DOT_DOT("..."))]
+           ),
+           PARENTHESIS_RIGHT(")"),
+           "b"
+         )]
+      ),
+      KEYWORD_END("end"),
+      Scope([DOT_DOT_DOT("...")])
+    )
+
+    assert_parses expected, "def a(...); b(1, 2, ...); end"
+  end
+
+  test "method call with interpolated ..." do
+    expected = DefNode(
+      KEYWORD_DEF("def"),
+      IDENTIFIER("a"),
+      PARENTHESIS_LEFT("("),
+      ParametersNode(
+        [],
+        [],
+        nil,
+        [],
+        ForwardingParameterNode(DOT_DOT_DOT("...")),
+        nil
+      ),
+      PARENTHESIS_RIGHT(")"),
+      nil,
+      Statements(
+        [InterpolatedStringNode(
+           STRING_BEGIN("\""),
+           [StringNode(nil, STRING_CONTENT("foo"), nil, "foo"),
+            StringInterpolatedNode(
+              EMBEXPR_BEGIN("\#{"),
+              Statements(
+                [CallNode(
+                   nil,
+                   nil,
+                   IDENTIFIER("b"),
+                   PARENTHESIS_LEFT("("),
+                   ArgumentsNode([ForwardingParameterNode(DOT_DOT_DOT("..."))]),
+                   PARENTHESIS_RIGHT(")"),
+                   "b"
+                 )]
+              ),
+              EMBEXPR_END("}")
+            )],
+           STRING_END("\"")
+         )]
+      ),
+      KEYWORD_END("end"),
+      Scope([DOT_DOT_DOT("...")])
+    )
+
+    assert_parses expected, "def a(...); \"foo\#{b(...)}\"; end"
   end
 
   test "defined? without parentheses" do
