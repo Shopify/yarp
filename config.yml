@@ -1134,6 +1134,18 @@ nodes:
 
           foo; bar; baz
           ^^^^^^^^^^^^^
+  - name: StringConcatNode
+    child_nodes:
+      - name: left
+        type: node
+      - name: right
+        type: node
+    location: left->right
+    comment: |
+      Represents string concatenation with or without a backslash.
+
+          "foo" "bar"
+          ^^^^^^^^^^^
   - name: StringInterpolatedNode
     child_nodes:
       - name: opening

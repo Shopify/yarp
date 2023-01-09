@@ -1,4 +1,6 @@
 #include "yarp.h"
+#include "ast.h"
+#include "unescape.h"
 
 #define STRINGIZE0(expr) #expr
 #define STRINGIZE(expr) STRINGIZE0(expr)
@@ -495,6 +497,31 @@ current_token_starts_line(yp_parser_t *parser) {
   return (parser->current.start == parser->start) || (parser->current.start[-1] == '\n');
 }
 
+static void
+advance_blank_characters(yp_parser_t *parser) {
+  bool chomping = true;
+  while (chomping) {
+    switch (*parser->current.end) {
+    case ' ':
+    case '\t':
+    case '\f':
+    case '\v':
+      parser->current.end++;
+      break;
+    case '\r':
+      if (parser->current.end[1] == '\n') {
+        chomping = false;
+      } else {
+        parser->current.end++;
+      }
+      break;
+    default:
+      chomping = false;
+      break;
+    }
+  }
+}
+
 // This is the overall lexer function. It is responsible for advancing both
 // parser->current.start and parser->current.end such that they point to the
 // beginning and end of the next token. It should return the type of token that
@@ -506,27 +533,7 @@ lex_token_type(yp_parser_t *parser) {
     case YP_LEX_EMBEXPR: {
       // First, we're going to skip past any whitespace at the front of the next
       // token.
-      bool chomping = true;
-      while (chomping) {
-        switch (*parser->current.end) {
-          case ' ':
-          case '\t':
-          case '\f':
-          case '\v':
-            parser->current.end++;
-            break;
-          case '\r':
-            if (parser->current.end[1] == '\n') {
-              chomping = false;
-            } else {
-              parser->current.end++;
-            }
-            break;
-          default:
-            chomping = false;
-            break;
-        }
-      }
+      advance_blank_characters(parser);
 
       // Next, we'll set to start of this token to be the current end.
       parser->current.start = parser->current.end;
@@ -774,9 +781,9 @@ lex_token_type(yp_parser_t *parser) {
             return YP_TOKEN_TILDE_AT;
           return YP_TOKEN_TILDE;
 
-        // TODO
         case '\\':
-          return YP_TOKEN_INVALID;
+          advance_blank_characters(parser);
+          return lex_token_type(parser);
 
         // % %= %i %I %q %Q %w %W
         case '%':
@@ -2771,7 +2778,19 @@ parse_expression_prefix(yp_parser_t *parser) {
       }
 
       expect(parser, YP_TOKEN_STRING_END, "Expected a closing delimiter for a string literal.");
-      return yp_node_string_node_create_and_unescape(parser, &opening, &content, &parser->previous, YP_UNESCAPE_MINIMAL);
+      yp_node_t *left_string = yp_node_string_node_create_and_unescape(
+          parser, &opening, &content, &parser->previous, YP_UNESCAPE_MINIMAL);
+
+      accept(parser, YP_TOKEN_NEWLINE);
+
+      if (parser->current.type == YP_TOKEN_STRING_BEGIN) {
+        return yp_node_string_concat_node_create(
+          parser,
+          left_string,
+          parse_expression(parser, BINDING_POWER_CALL, "Expected string on the right side of concatenation."));
+      }
+
+      return left_string;
     }
     case YP_TOKEN_SYMBOL_BEGIN:
       return parse_symbol(parser, mode);

@@ -1690,6 +1690,17 @@ class ParseTest < Test::Unit::TestCase
     assert_parses expected, "begin a; ensure b; end"
   end
 
+  test "string concatenation" do
+    expected = StringConcatNode(
+      StringNode(STRING_BEGIN("'"), STRING_CONTENT("foo"), STRING_END("'"), "foo"),
+      StringNode(STRING_BEGIN("'"), STRING_CONTENT("bar"), STRING_END("'"), "bar"),
+    )
+
+    assert_parses expected, "'foo' 'bar'"
+    assert_parses expected, "'foo' \ 'bar'"
+    assert_parses expected, "'foo' \\\n 'bar'"
+  end
+
   private
 
   def assert_serializes(expected, source)
