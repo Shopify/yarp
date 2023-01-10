@@ -1098,6 +1098,18 @@ nodes:
           def a(*b)
                 ^^
           end
+  - name: ArraySplatNode
+    child_nodes:
+      - name: operator
+        type: token
+      - name: expression
+        type: node
+    location: operator->expression
+    comment: |
+      Represents array splats.
+
+          [*a]
+           ^^
   - name: RetryNode
     child_nodes:
       - name: value
