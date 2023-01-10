@@ -52,6 +52,16 @@ class ParseTest < Test::Unit::TestCase
     assert_parses expected, "alias :foo :bar"
   end
 
+  test "alias global variables" do
+    expected = AliasNode(
+      KEYWORD_ALIAS("alias"),
+      GlobalVariableRead(GLOBAL_VARIABLE("$foo")),
+      GlobalVariableRead(GLOBAL_VARIABLE("$bar"))
+    )
+
+    assert_parses expected, "alias $foo $bar"
+  end
+
   test "and keyword" do
     assert_parses AndNode(expression("1"), KEYWORD_AND("and"), expression("2")), "1 and 2"
   end
@@ -1066,7 +1076,7 @@ class ParseTest < Test::Unit::TestCase
         expression("$bbb")
       ],
       REGEXP_END("/")
-    )    
+    )
 
     assert_parses expected, "/aaa \#$bbb/"
   end
@@ -1489,6 +1499,28 @@ class ParseTest < Test::Unit::TestCase
     )
 
     assert_parses expected, "undef :a, :b, :c"
+  end
+
+  test "undef global variable" do
+    expected = UndefNode(
+      KEYWORD_UNDEF("undef"),
+      [GlobalVariableRead(GLOBAL_VARIABLE("$a"))]
+    )
+
+    assert_parses expected, "undef $a"
+  end
+
+  test "undef global variable, multiple" do
+    expected = UndefNode(
+      KEYWORD_UNDEF("undef"),
+      [
+        GlobalVariableRead(GLOBAL_VARIABLE("$a")),
+        GlobalVariableRead(GLOBAL_VARIABLE("$g")),
+        GlobalVariableRead(GLOBAL_VARIABLE("$foo"))
+      ]
+    )
+
+    assert_parses expected, "undef $a, $g, $foo"
   end
 
   test "unless" do
