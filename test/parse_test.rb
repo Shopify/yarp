@@ -1246,7 +1246,7 @@ class ParseTest < Test::Unit::TestCase
         expression("$bbb")
       ],
       REGEXP_END("/")
-    )    
+    )
 
     assert_parses expected, "/aaa \#$bbb/"
   end
@@ -2168,6 +2168,47 @@ class ParseTest < Test::Unit::TestCase
     assert_parses expected, "begin; a; ensure; b; end"
     assert_parses expected, "begin a\n ensure b\n end"
     assert_parses expected, "begin a; ensure b; end"
+  end
+
+  test "parses empty hash" do
+    assert_parses HashNode(BRACE_LEFT("{"), [], BRACE_RIGHT("}")), "{}"
+  end
+
+  test "parses hash with hashrocket keys" do
+    expected = HashNode(
+      BRACE_LEFT("{"),
+      [AssocNode(
+        CallNode(nil, nil, IDENTIFIER("a"), nil, nil, nil, "a"),
+        EQUAL_GREATER("=>"),
+        CallNode(nil, nil, IDENTIFIER("b"), nil, nil, nil, "b")
+      ),
+      AssocNode(
+        CallNode(nil, nil, IDENTIFIER("c"), nil, nil, nil, "c"),
+        EQUAL_GREATER("=>"),
+        CallNode(nil, nil, IDENTIFIER("d"), nil, nil, nil, "d")
+      )],
+      BRACE_RIGHT("}")
+    )
+
+    assert_parses expected, "{ a => b, c => d }"
+  end
+
+  test "parses hash with splat" do
+    expected = HashNode(
+      BRACE_LEFT("{"),
+      [AssocNode(
+         CallNode(nil, nil, IDENTIFIER("a"), nil, nil, nil, "a"),
+         EQUAL_GREATER("=>"),
+         CallNode(nil, nil, IDENTIFIER("b"), nil, nil, nil, "b"),
+       ),
+       AssocSplat(
+         STAR_STAR("**"),
+         CallNode(nil, nil, IDENTIFIER("c"), nil, nil, nil, "c"),
+       )],
+      BRACE_RIGHT("}")
+    )
+
+    assert_parses expected, "{ a => b, **c }"
   end
 
   private

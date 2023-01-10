@@ -2448,6 +2448,40 @@ parse_expression_prefix(yp_parser_t *parser) {
       parentheses->as.parentheses_node.closing = parser->previous;
       return parentheses;
     }
+
+    case YP_TOKEN_BRACE_LEFT: {
+      yp_token_t opening = parser->previous;
+      yp_node_t *hash = yp_node_hash_node_create(parser, &opening, &opening);
+      while (parser->current.type != YP_TOKEN_BRACE_RIGHT && parser->current.type != YP_TOKEN_EOF) {
+	if (hash->as.hash_node.elements.size != 0) {
+	  expect(parser, YP_TOKEN_COMMA, "expected a , between hash entries.");
+	}
+
+	if (accept(parser, YP_TOKEN_STAR_STAR)) {
+	  yp_token_t splat = parser->previous;
+	  yp_node_t *value = parse_expression(parser, BINDING_POWER_NONE, "Expected an expression after ** in hash.");
+	  yp_node_t *splatNode = yp_node_assoc_splat_create(parser, &splat, value);
+	  yp_node_list_append(parser, hash, &hash->as.hash_node.elements, splatNode);
+	  continue;
+	}
+
+	yp_node_t *key = parse_expression(parser, BINDING_POWER_NONE, "Expected a key in the hash literal.");
+
+	expect(parser, YP_TOKEN_EQUAL_GREATER, "expected a => between the key and the value in the hash.");
+	yp_token_t operator = parser->previous;
+
+	yp_node_t *value = parse_expression(parser, BINDING_POWER_NONE, "Expected a value in the hash literal.");
+
+	yp_node_t *assoc = yp_node_assoc_node_create(parser, key, &operator, value);
+
+	yp_node_list_append(parser, hash, &hash->as.hash_node.elements, assoc);
+      }
+
+      expect(parser, YP_TOKEN_BRACE_RIGHT, "Expected a closing delimiter for a hash literal.");
+      hash->as.hash_node.closing = parser->previous;
+      return hash;
+    }
+
     case YP_TOKEN_CHARACTER_LITERAL: {
       yp_token_t opening = parser->previous;
       opening.type = YP_TOKEN_STRING_BEGIN;
