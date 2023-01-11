@@ -29,6 +29,7 @@ debug_context(yp_context_t context) {
     case YP_CONTEXT_PARENS: return "PARENS";
     case YP_CONTEXT_POSTEXE: return "POSTEXE";
     case YP_CONTEXT_PREEXE: return "PREEXE";
+    case YP_CONTEXT_RESCUE: return "RESCUE";
     case YP_CONTEXT_SCLASS: return "SCLASS";
     case YP_CONTEXT_UNLESS: return "UNLESS";
     case YP_CONTEXT_UNTIL: return "UNTIL";
@@ -728,7 +729,7 @@ lex_question_mark(yp_parser_t *parser) {
               parser->current.end++;
             }
           }
-          
+
           return YP_TOKEN_CHARACTER_LITERAL;
         case 'C':
           // \C-x           control character, where x is an ASCII printable character
@@ -1654,12 +1655,13 @@ context_terminator(yp_context_t context, yp_token_t *token) {
     case YP_CONTEXT_UNLESS:
     case YP_CONTEXT_ELSIF:
       return token->type == YP_TOKEN_KEYWORD_ELSE || token->type == YP_TOKEN_KEYWORD_ELSIF || token->type == YP_TOKEN_KEYWORD_END;
-    case YP_CONTEXT_BEGIN:
-      return token->type == YP_TOKEN_KEYWORD_ENSURE || token->type == YP_TOKEN_KEYWORD_END;
     case YP_CONTEXT_EMBEXPR:
       return token->type == YP_TOKEN_EMBEXPR_END;
     case YP_CONTEXT_PARENS:
       return token->type == YP_TOKEN_PARENTHESIS_RIGHT;
+    case YP_CONTEXT_BEGIN:
+    case YP_CONTEXT_RESCUE:
+      return token->type == YP_TOKEN_KEYWORD_ENSURE || token->type == YP_TOKEN_KEYWORD_RESCUE || token->type == YP_TOKEN_KEYWORD_END;
   }
 
   return false;
@@ -2521,7 +2523,53 @@ parse_expression_prefix(yp_parser_t *parser) {
       yp_token_t end_keyword;
       not_provided(&end_keyword, parser->previous.end);
 
-      yp_node_t *begin_node = yp_node_begin_node_create(parser, &begin_keyword, begin_statements, NULL, &end_keyword);
+      yp_node_t *begin_node = yp_node_begin_node_create(parser, &begin_keyword, begin_statements, NULL, NULL, &end_keyword);
+
+      yp_node_t *current = NULL;
+
+      // Parse any number of rescue clauses. This will form a linked list of if
+      // nodes pointing to each other from the top.
+      while (parser->current.type == YP_TOKEN_KEYWORD_RESCUE) {
+        parser_lex(parser);
+        yp_token_t rescue_keyword = parser->previous;
+
+        yp_token_t exception_variable;
+        not_provided(&exception_variable, parser->previous.end);
+
+        yp_token_t equal_greater;
+        not_provided(&equal_greater, parser->previous.end);
+
+        yp_node_t *statements = yp_node_statements_create(parser);
+
+        yp_node_t *rescue = yp_node_rescue_node_create(parser, &rescue_keyword, &equal_greater, &exception_variable, statements, NULL);
+
+        while (parser->current.type == YP_TOKEN_CONSTANT) {
+          yp_node_t *expression = parse_expression(parser, BINDING_POWER_NONE, "Expected to find a class.");
+          yp_node_list_append(parser, rescue, &rescue->as.rescue_node.exception_classes, expression);
+
+          if (accept_any(parser, 2, YP_TOKEN_NEWLINE, YP_TOKEN_EQUAL_GREATER)) break;
+          expect(parser, YP_TOKEN_COMMA, "Expected an ',' to delimit exception classes.");
+        }
+
+        if (parser->previous.type == YP_TOKEN_EQUAL_GREATER) {
+          rescue->as.rescue_node.equal_greater = parser->previous;
+
+          expect(parser, YP_TOKEN_IDENTIFIER, "Expected variable name after `=>` in rescue statement");
+          rescue->as.rescue_node.exception_variable = parser->previous;
+        }
+
+        accept_any(parser, 2, YP_TOKEN_NEWLINE, YP_TOKEN_SEMICOLON);
+
+        rescue->as.rescue_node.statements = parse_statements(parser, YP_CONTEXT_RESCUE);
+        accept_any(parser, 2, YP_TOKEN_NEWLINE, YP_TOKEN_SEMICOLON);
+
+        if (current == NULL) {
+          begin_node->as.begin_node.rescue_clause = rescue;
+        } else {
+          current->as.rescue_node.consequent = rescue;
+        }
+        current = rescue;
+      }
 
       if (accept(parser, YP_TOKEN_KEYWORD_ENSURE)) {
         yp_token_t ensure_keyword = parser->previous;
@@ -3166,7 +3214,7 @@ parse_expression_prefix(yp_parser_t *parser) {
       while (parser->current.type != YP_TOKEN_EOF && parser->current.type != YP_TOKEN_REGEXP_END) {
         yp_node_t *part;
         if ((part = parse_string_part(parser)) != NULL) {
-          yp_node_list_append(parser, node, &node->as.interpolated_regular_expression_node.parts, part); 
+          yp_node_list_append(parser, node, &node->as.interpolated_regular_expression_node.parts, part);
         }
       }
 
@@ -3238,7 +3286,7 @@ parse_expression_prefix(yp_parser_t *parser) {
         while (parser->current.type != YP_TOKEN_STRING_END && parser->current.type != YP_TOKEN_EOF) {
           yp_node_t *part;
           if ((part = parse_string_part(parser)) != NULL) {
-            yp_node_list_append(parser, interpolated, &interpolated->as.interpolated_string_node.parts, part); 
+            yp_node_list_append(parser, interpolated, &interpolated->as.interpolated_string_node.parts, part);
           }
         }
 

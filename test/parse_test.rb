@@ -1246,7 +1246,7 @@ class ParseTest < Test::Unit::TestCase
         expression("$bbb")
       ],
       REGEXP_END("/")
-    )    
+    )
 
     assert_parses expected, "/aaa \#$bbb/"
   end
@@ -1923,6 +1923,7 @@ class ParseTest < Test::Unit::TestCase
       KEYWORD_BEGIN("begin"),
       Statements([expression("a")]),
       nil,
+      nil,
       KEYWORD_END("end"),
     )
 
@@ -2152,10 +2153,167 @@ class ParseTest < Test::Unit::TestCase
     assert_parses expected, "foo rescue nil || 1"
   end
 
+  test "begin with rescue statement" do
+    expected = BeginNode(
+      KEYWORD_BEGIN("begin"),
+      Statements([expression("a")]),
+      RescueNode(
+        KEYWORD_RESCUE("rescue"),
+        [],
+        nil,
+        nil,
+        Statements([expression("b")]),
+        nil
+      ),
+      nil,
+      KEYWORD_END("end"),
+    )
+
+    assert_parses expected, "begin\na\nrescue\nb\nend"
+    assert_parses expected, "begin;a;rescue;b;end"
+    assert_parses expected, "begin\na;rescue\nb;end"
+  end
+
+  test "begin with rescue statement and exception" do
+    expected = BeginNode(
+      KEYWORD_BEGIN("begin"),
+      Statements([expression("a")]),
+      RescueNode(
+        KEYWORD_RESCUE("rescue"),
+        [ConstantRead(CONSTANT("Exception"))],
+        nil,
+        nil,
+        Statements([expression("b")]),
+        nil
+      ),
+      nil,
+      KEYWORD_END("end"),
+    )
+
+    assert_parses expected, "begin\na\nrescue Exception\nb\nend"
+  end
+
+  test "begin with rescue statement with variable" do
+    expected = BeginNode(
+      KEYWORD_BEGIN("begin"),
+      Statements([expression("a")]),
+      RescueNode(
+        KEYWORD_RESCUE("rescue"),
+        [ConstantRead(CONSTANT("Exception"))],
+        EQUAL_GREATER("=>"),
+        IDENTIFIER("ex"),
+        Statements([expression("b")]),
+        nil
+      ),
+      nil,
+      KEYWORD_END("end"),
+    )
+
+    assert_parses expected, "begin\na\nrescue Exception => ex\nb\nend"
+  end
+
+  test "begin with rescue statement and exception list" do
+    expected = BeginNode(
+      KEYWORD_BEGIN("begin"),
+      Statements([expression("a")]),
+      RescueNode(
+        KEYWORD_RESCUE("rescue"),
+        [ConstantRead(CONSTANT("Exception")), ConstantRead(CONSTANT("CustomException"))],
+        nil,
+        nil,
+        Statements([expression("b")]),
+        nil
+      ),
+      nil,
+      KEYWORD_END("end"),
+    )
+
+    assert_parses expected, "begin\na\nrescue Exception, CustomException\nb\nend"
+  end
+
+  test "begin with rescue statement and exception list with variable" do
+    expected = BeginNode(
+      KEYWORD_BEGIN("begin"),
+      Statements([expression("a")]),
+      RescueNode(
+        KEYWORD_RESCUE("rescue"),
+        [ConstantRead(CONSTANT("Exception")), ConstantRead(CONSTANT("CustomException"))],
+        EQUAL_GREATER("=>"),
+        IDENTIFIER("ex"),
+        Statements([expression("b")]),
+        nil
+      ),
+      nil,
+      KEYWORD_END("end"),
+    )
+
+    assert_parses expected, "begin\na\nrescue Exception, CustomException => ex\nb\nend"
+  end
+
+  test "begin with multiple rescue statements" do
+    expected = BeginNode(
+      KEYWORD_BEGIN("begin"),
+      Statements([expression("a")]),
+      RescueNode(
+        KEYWORD_RESCUE("rescue"),
+        [],
+        nil,
+        nil,
+        Statements([expression("b")]),
+        RescueNode(
+          KEYWORD_RESCUE("rescue"),
+          [],
+          nil,
+          nil,
+          Statements([expression("c")]),
+          RescueNode(
+            KEYWORD_RESCUE("rescue"),
+            [],
+            nil,
+            nil,
+            Statements([expression("d")]),
+            nil
+          )
+        )
+      ),
+      nil,
+      KEYWORD_END("end"),
+    )
+
+    assert_parses expected, "begin\na\nrescue\nb\nrescue\nc\nrescue\nd\nend"
+  end
+
+  test "begin with multiple rescue statements with exception classes and variables" do
+    expected = BeginNode(
+      KEYWORD_BEGIN("begin"),
+      Statements([expression("a")]),
+      RescueNode(
+        KEYWORD_RESCUE("rescue"),
+        [ConstantRead(CONSTANT("Exception"))],
+        EQUAL_GREATER("=>"),
+        IDENTIFIER("ex"),
+        Statements([expression("b")]),
+        RescueNode(
+          KEYWORD_RESCUE("rescue"),
+          [ConstantRead(CONSTANT("AnotherException")), ConstantRead(CONSTANT("OneMoreException"))],
+          EQUAL_GREATER("=>"),
+          IDENTIFIER("ex"),
+          Statements([expression("c")]),
+          nil
+        )
+      ),
+      nil,
+      KEYWORD_END("end"),
+    )
+
+    assert_parses expected, "begin\na\nrescue Exception => ex\nb\nrescue AnotherException, OneMoreException => ex\nc\nend"
+  end
+
   test "ensure statements" do
     expected = BeginNode(
       KEYWORD_BEGIN("begin"),
       Statements([expression("a")]),
+      nil,
       EnsureNode(
         KEYWORD_ENSURE("ensure"),
         Statements([expression("b")]),
@@ -2168,6 +2326,29 @@ class ParseTest < Test::Unit::TestCase
     assert_parses expected, "begin; a; ensure; b; end"
     assert_parses expected, "begin a\n ensure b\n end"
     assert_parses expected, "begin a; ensure b; end"
+  end
+
+  test "begin with rescue and ensure statements" do
+    expected = BeginNode(
+      KEYWORD_BEGIN("begin"),
+      Statements([expression("a")]),
+      RescueNode(
+        KEYWORD_RESCUE("rescue"),
+        [ConstantRead(CONSTANT("Exception"))],
+        EQUAL_GREATER("=>"),
+        IDENTIFIER("ex"),
+        Statements([expression("b")]),
+        nil
+      ),
+      EnsureNode(
+        KEYWORD_ENSURE("ensure"),
+        Statements([expression("b")]),
+        KEYWORD_END("end"),
+      ),
+      nil,
+    )
+
+    assert_parses expected, "begin\na\nrescue Exception => ex\nb\nensure\nb\nend"
   end
 
   private

@@ -344,6 +344,8 @@ nodes:
         type: token
       - name: statements
         type: node
+      - name: rescue_clause
+        type: node?
       - name: ensure_clause
         type: node?
       - name: end_keyword
@@ -1085,6 +1087,27 @@ nodes:
 
         foo rescue nil
         ^^^^^^^^^^^^^^
+  - name: RescueNode
+    child_nodes:
+      - name: rescue_keyword
+        type: token
+      - name: exception_classes
+        type: node[]
+      - name: equal_greater
+        type: token?
+      - name: exception_variable
+        type: token?
+      - name: statements
+        type: node
+      - name: consequent
+        type: node?
+    location: rescue_keyword->statements|consequent
+    comment: |
+      Represents a rescue statement.
+
+          rescue
+            foo
+          ^^^^^^
   - name: RestParameterNode
     child_nodes:
       - name: operator
