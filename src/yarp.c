@@ -2328,6 +2328,10 @@ parse_alias_or_undef_argument(yp_parser_t *parser) {
       parser_lex(parser);
       return parse_symbol(parser, mode);
     }
+    case YP_TOKEN_GLOBAL_VARIABLE: {
+      parser_lex(parser);
+      return yp_node_global_variable_read_create(parser, &parser->previous);
+    }
     default:
       yp_error_list_append(&parser->error_list, "Expected a bare word or symbol argument.", parser->current.start - parser->start);
       return yp_node_missing_node_create(parser, parser->current.start - parser->start);
